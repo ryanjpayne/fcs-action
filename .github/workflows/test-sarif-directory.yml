@@ -1,0 +1,39 @@
+name: test-sarif-directory-fix
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create output directory
+        run: mkdir scan-results
+      - name: Run FCS IaC Scan
+        uses: ./
+        with:
+          falcon_client_id: ${{ secrets.FALCON_CLIENT_ID }}
+          falcon_region: 'us-1'
+          path: '.'
+          report_formats: 'json,sarif'
+          output_path: './scan-results'
+        env:
+          FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
+      - name: Verify SARIF file exists
+        run: |
+          echo "--- scan-results contents ---"
+          ls -la ./scan-results/
+          if ls ./scan-results/*.sarif 1>/dev/null 2>&1; then
+            echo "SUCCESS: SARIF file(s) found"
+          else
+            echo "ERROR: no .sarif files found in ./scan-results/"
+            exit 1
+          fi
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ./scan-results
