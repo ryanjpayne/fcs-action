@@ -10,30 +10,27 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Create output directory
-        run: mkdir scan-results
       - name: Run FCS IaC Scan
         uses: ./
         with:
           falcon_client_id: ${{ secrets.FALCON_CLIENT_ID }}
           falcon_region: 'us-1'
           path: '.'
-          report_formats: 'json,sarif'
-          output_path: './scan-results'
+          report_formats: 'sarif'
+          output_path: './scan-results.sarif'
         env:
           FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
       - name: Verify SARIF file exists
         run: |
-          echo "--- scan-results contents ---"
-          ls -la ./scan-results/
-          if ls ./scan-results/*.sarif 1>/dev/null 2>&1; then
-            echo "SUCCESS: SARIF file(s) found"
+          if [[ -f ./scan-results.sarif ]]; then
+            echo "SUCCESS: scan-results.sarif found"
           else
-            echo "ERROR: no .sarif files found in ./scan-results/"
+            echo "ERROR: scan-results.sarif not found"
+            ls -la .
             exit 1
           fi
       - name: Upload SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: ./scan-results
+          sarif_file: ./scan-results.sarif
