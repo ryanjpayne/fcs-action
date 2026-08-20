@@ -47,7 +47,9 @@ convert_json_to_sarif() {
         log "convert_json_to_sarif: Parsing CLI output from $FCS_CLI_OUTPUT_FILE"
 
         # Extract file paths from "Results saved to file: <path>" lines
+        # Strip carriage returns (\r) that the CLI progress bar embeds in the output
         all_json_files=$(grep "Results saved to file:" "$FCS_CLI_OUTPUT_FILE" | \
+                        tr -d '\r' | \
                         sed 's/.*Results saved to file: //' | \
                         grep '\.json$' | \
                         sort)

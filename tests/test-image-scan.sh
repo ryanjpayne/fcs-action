@@ -738,14 +738,12 @@ Scan complete. No issues found."
         echo
     }
 
-    # Test 22: no output_path, CLI emits "Results saved to file:" — happy path
+    # Test 22: no output_path, CLI emits "Results saved to file:" with \r from progress bar
     local no_op_json="/tmp/sarif_no_op_$$/results.json"
     mkdir -p "$(dirname "$no_op_json")"
     test_sarif_no_output_path \
-        "No output_path: stdout parse succeeds" \
-        "Scanning...
-Results saved to file: $no_op_json
-Done." \
+        "No output_path: stdout parse succeeds (with \\r from progress bar)" \
+        "$(printf 'Scan progress: 100%%\rResults saved to file: %s\r' "$no_op_json")" \
         "$no_op_json" \
         "true"
     rm -rf "$(dirname "$no_op_json")"
