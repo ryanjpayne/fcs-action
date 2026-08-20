@@ -1,8 +1,10 @@
-name: test-sarif-directory-fix
+name: test-sarif-conversion-matrix
 on:
   workflow_dispatch:
+
 jobs:
-  test:
+  # Case 3: IaC, report_formats='sarif', output_path='.sarif file'
+  iac-sarif-only-sarif-output-path:
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -29,8 +31,117 @@ jobs:
             ls -la .
             exit 1
           fi
-      - name: Upload SARIF to GitHub Security tab
+      - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: ./scan-results.sarif
+
+  # Case 2: IaC, report_formats='sarif', output_path='directory'
+  iac-sarif-only-directory-output-path:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create output directory
+        run: mkdir scan-results
+      - name: Run FCS IaC Scan
+        uses: ./
+        with:
+          falcon_client_id: ${{ secrets.FALCON_CLIENT_ID }}
+          falcon_region: 'us-1'
+          path: '.'
+          report_formats: 'sarif'
+          output_path: './scan-results'
+        env:
+          FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
+      - name: Verify SARIF file exists
+        run: |
+          if ls ./scan-results/*.sarif 1>/dev/null 2>&1; then
+            echo "SUCCESS: SARIF file(s) found in ./scan-results/"
+            ls -la ./scan-results/
+          else
+            echo "ERROR: no .sarif files found in ./scan-results/"
+            ls -la ./scan-results/
+            exit 1
+          fi
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ./scan-results
+
+  # Case 6: IaC, report_formats='json,sarif', output_path='directory'
+  iac-json-sarif-directory-output-path:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create output directory
+        run: mkdir scan-results
+      - name: Run FCS IaC Scan
+        uses: ./
+        with:
+          falcon_client_id: ${{ secrets.FALCON_CLIENT_ID }}
+          falcon_region: 'us-1'
+          path: '.'
+          report_formats: 'json,sarif'
+          output_path: './scan-results'
+        env:
+          FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
+      - name: Verify both JSON and SARIF files exist
+        run: |
+          if ls ./scan-results/*.json 1>/dev/null 2>&1 && ls ./scan-results/*.sarif 1>/dev/null 2>&1; then
+            echo "SUCCESS: both .json and .sarif files found"
+            ls -la ./scan-results/
+          else
+            echo "ERROR: missing expected output files"
+            ls -la ./scan-results/
+            exit 1
+          fi
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ./scan-results
+
+  # Case 1: IaC, report_formats='sarif', no output_path
+  # Relies entirely on CLI emitting "Results saved to file:" in stdout
+  iac-sarif-only-no-output-path:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run FCS IaC Scan
+        uses: ./
+        with:
+          falcon_client_id: ${{ secrets.FALCON_CLIENT_ID }}
+          falcon_region: 'us-1'
+          path: '.'
+          report_formats: 'sarif'
+        env:
+          FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
+      - name: Verify SARIF file exists
+        run: |
+          if ls ./*.sarif 1>/dev/null 2>&1; then
+            echo "SUCCESS: SARIF file(s) found"
+            ls -la ./*.sarif
+          else
+            echo "ERROR: no .sarif files found — CLI may not emit 'Results saved to file:'"
+            ls -la .
+            exit 1
+          fi
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: .

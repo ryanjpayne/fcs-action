@@ -674,6 +674,118 @@ Scan complete. No issues found."
         "/tmp/results.json" \
         "--output-path /tmp/results.json"
 
+    # ============================================================
+    # No output_path: primary stdout parse is the only mechanism
+    # Tests #1/#5 (IaC) and #9/#13 (image) — scan type is irrelevant
+    # since convert_json_to_sarif is shared. Covers both the happy
+    # path (CLI emits "Results saved to file:") and the known failure
+    # path (CLI does not emit it).
+    # ============================================================
+
+    test_sarif_no_output_path() {
+        local test_name="$1"
+        local cli_output_content="$2"
+        local json_file="$3"
+        local expect_sarif="$4"   # "true" or "false"
+
+        log "Testing SARIF conversion (no output_path): $test_name"
+
+        local cli_output_file="/tmp/sarif_no_op_cli_$$.txt"
+        echo "$cli_output_content" > "$cli_output_file"
+
+        # Create mock JSON file if provided
+        if [[ -n "$json_file" ]]; then
+            mkdir -p "$(dirname "$json_file")"
+            echo '{"fcs_version":"5.0.1","rule_detections":[]}' > "$json_file"
+        fi
+
+        local sarif_file="${json_file%.json}.sarif"
+
+        local result
+        result=$(
+            export GITHUB_ACTION_PATH="$PROJECT_ROOT"
+            export INPUT_OUTPUT_PATH=""
+            export FCS_CLI_OUTPUT_FILE="$cli_output_file"
+
+            source <(grep -A 200 '^convert_json_to_sarif()' "$FCS_SCAN_SCRIPT" | \
+                     awk '/^convert_json_to_sarif\(\)/{found=1} found{print; brace+=gsub(/{/,""); brace-=gsub(/}/,""); if(found && brace==0) exit}')
+            source <(grep -A 5 '^log()' "$FCS_SCAN_SCRIPT")
+
+            convert_json_to_sarif 2>&1
+        )
+
+        rm -f "$cli_output_file"
+
+        if [[ "$expect_sarif" == "true" ]]; then
+            if [[ -f "$sarif_file" ]]; then
+                echo -e "  ${GREEN}✓${NC} SARIF file produced via stdout parse: $sarif_file"
+                rm -f "$json_file" "$sarif_file"
+            else
+                error "Expected SARIF file not found: $sarif_file"
+                error "Function output: $result"
+                rm -f "$json_file"
+                return 1
+            fi
+        else
+            if [[ ! -f "$sarif_file" ]]; then
+                echo -e "  ${GREEN}✓${NC} No SARIF produced as expected (stdout parse found nothing)"
+            else
+                error "SARIF file should not have been produced: $sarif_file"
+                rm -f "$json_file" "$sarif_file"
+                return 1
+            fi
+        fi
+        echo
+    }
+
+    # Test 22: no output_path, CLI emits "Results saved to file:" — happy path
+    local no_op_json="/tmp/sarif_no_op_$$/results.json"
+    mkdir -p "$(dirname "$no_op_json")"
+    test_sarif_no_output_path \
+        "No output_path: stdout parse succeeds" \
+        "Scanning...
+Results saved to file: $no_op_json
+Done." \
+        "$no_op_json" \
+        "true"
+    rm -rf "$(dirname "$no_op_json")"
+
+    # Test 23: no output_path, CLI emits nothing useful — known silent failure
+    test_sarif_no_output_path \
+        "No output_path: stdout parse finds nothing (known limitation)" \
+        "Scanning...
+Done." \
+        "" \
+        "false"
+
+    # ============================================================
+    # Image scan + directory output_path (#10/#14)
+    # convert_json_to_sarif is scan-type agnostic so the directory
+    # fallback logic is identical to IaC — this test confirms the
+    # image parameter naming difference doesn't affect conversion.
+    # ============================================================
+
+    # Test 24: image scan — directory output_path, single JSON inside
+    local img_dir="/tmp/img-scan-results-$$"
+    mkdir -p "$img_dir"
+    test_sarif_discovery_fallback_directory \
+        "Image scan: directory output_path with single JSON inside" \
+        "$img_dir" \
+        "$img_dir/image-results.sarif" \
+        "$img_dir/image-results.json"
+    rm -rf "$img_dir"
+
+    # Test 25: image scan — directory output_path, multiple JSON files (multi-arch)
+    local img_dir2="/tmp/img-scan-results2-$$"
+    mkdir -p "$img_dir2"
+    test_sarif_discovery_fallback_directory \
+        "Image scan: directory output_path with multi-arch JSON files" \
+        "$img_dir2" \
+        "$img_dir2/results_linux_amd64.sarif" \
+        "$img_dir2/results_linux_amd64.json" \
+        "$img_dir2/results_linux_arm64.json"
+    rm -rf "$img_dir2"
+
     log "All tests completed successfully!"
     log "Image scanning functionality is working correctly."
     
