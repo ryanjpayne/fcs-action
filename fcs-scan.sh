@@ -44,12 +44,13 @@ convert_json_to_sarif() {
 
     # Parse FCS CLI output to find generated files
     if [[ -f "$FCS_CLI_OUTPUT_FILE" ]]; then
-        log "convert_json_to_sarif: Parsing CLI output from $FCS_CLI_OUTPUT_FILE (size: $(wc -c < "$FCS_CLI_OUTPUT_FILE") bytes)"
-        log "convert_json_to_sarif: Last 5 lines of CLI output: $(tail -5 "$FCS_CLI_OUTPUT_FILE" | cat -v)"
+        log "convert_json_to_sarif: Parsing CLI output from $FCS_CLI_OUTPUT_FILE"
 
-        # Extract file paths from "Results saved to file: <path>" lines
-        # Strip carriage returns (\r) that the CLI progress bar embeds in the output
+        # Extract file paths from "Results saved to file: <path>" lines.
+        # Strip ANSI escape codes (CLI bolds these lines) and carriage returns
+        # (\r from progress bar) before extracting the path.
         all_json_files=$(grep "Results saved to file:" "$FCS_CLI_OUTPUT_FILE" | \
+                        sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | \
                         tr -d '\r' | \
                         sed 's/.*Results saved to file: //' | \
                         grep '\.json$' | \
