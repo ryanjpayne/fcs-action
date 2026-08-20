@@ -112,7 +112,8 @@ jobs:
           sarif_file: ./scan-results
 
   # Case 1: IaC, report_formats='sarif', no output_path
-  # Relies entirely on CLI emitting "Results saved to file:" in stdout
+  # Relies entirely on CLI emitting "Results saved to file:" in stdout.
+  # SARIF ends up in ~/.crowdstrike/results/ (CLI default location).
   iac-sarif-only-no-output-path:
     runs-on: ubuntu-latest
     permissions:
@@ -130,18 +131,19 @@ jobs:
           report_formats: 'sarif'
         env:
           FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
-      - name: Verify SARIF file exists
+      - name: Verify SARIF and copy to workspace for upload
         run: |
-          if ls ./*.sarif 1>/dev/null 2>&1; then
-            echo "SUCCESS: SARIF file(s) found"
-            ls -la ./*.sarif
+          sarif_file=$(find "$HOME/.crowdstrike/results" "$GITHUB_WORKSPACE" -name "*.sarif" 2>/dev/null | head -1)
+          if [[ -n "$sarif_file" ]]; then
+            echo "SUCCESS: SARIF file found at $sarif_file"
+            cp "$sarif_file" "$GITHUB_WORKSPACE/scan-results.sarif"
           else
-            echo "ERROR: no .sarif files found — CLI may not emit 'Results saved to file:'"
-            ls -la .
+            echo "ERROR: no .sarif files found in $HOME/.crowdstrike/results/ or workspace"
+            ls -la "$HOME/.crowdstrike/results/" 2>/dev/null || echo "~/.crowdstrike/results/ not found"
             exit 1
           fi
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: .
+          sarif_file: scan-results.sarif
