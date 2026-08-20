@@ -284,10 +284,15 @@ set_parameters() {
             local input_var="INPUT_${param%%:*}"
             local param_name="${param#*:}"
             if [[ -n "${!input_var:-}" ]]; then
-                # Special handling for output path - ensure directory exists
+                # Special handling for output path - ensure directory exists and change .sarif to .json
                 if [[ "$param_name" == "output-path" ]]; then
-                    ensure_output_directory "${!input_var}"
-                    params+=("--${param_name} ${!input_var}")
+                    local output_value="${!input_var}"
+                    ensure_output_directory "$output_value"
+                    if [[ "$output_value" == *.sarif ]]; then
+                        output_value="${output_value%.sarif}.json"
+                        log "Output path changed from ${!input_var} to ${output_value} to ensure JSON generation"
+                    fi
+                    params+=("--${param_name} ${output_value}")
                 # Special handling for report formats - replace sarif with json if needed
                 elif [[ "$param_name" == "report-formats" ]]; then
                     local prepared_formats

@@ -616,6 +616,64 @@ Scan complete. No issues found."
         "$scan_dir2/secrets-results.json"
     rm -rf "$scan_dir2"
 
+    # ============================================================
+    # IaC output-path .sarif → .json rewrite in set_parameters
+    # Regression test for: report_formats='sarif', output_path='./results.sarif'
+    # The IaC set_parameters must rewrite the path to .json before passing to
+    # the CLI, otherwise the CLI writes to .sarif and convert_json_to_sarif
+    # can't find the file.
+    # ============================================================
+
+    test_iac_sarif_output_path_rewrite() {
+        local test_name="$1"
+        local input_output_path="$2"
+        local expected_param="$3"
+
+        log "Testing IaC output-path rewrite: $test_name"
+
+        local result
+        result=$(
+            export INPUT_SCAN_TYPE="iac"
+            export INPUT_PATH="."
+            export INPUT_OUTPUT_PATH="$input_output_path"
+            export INPUT_REPORT_FORMATS="sarif"
+            export INPUT_FALCON_CLIENT_ID="test-id"
+            export FALCON_CLIENT_SECRET="test-secret"
+            export INPUT_FALCON_REGION="us-1"
+
+            source <(grep -A 300 '^set_parameters()' "$FCS_SCAN_SCRIPT" | \
+                     awk '/^set_parameters\(\)/{found=1} found{print; brace+=gsub(/{/,""); brace-=gsub(/}/,""); if(found && brace==0) exit}')
+            source <(grep -A 5 '^validate_bool()' "$FCS_SCAN_SCRIPT")
+            source <(grep -A 20 '^prepare_report_formats_for_cli()' "$FCS_SCAN_SCRIPT")
+            source <(grep -A 20 '^ensure_output_directory()' "$FCS_SCAN_SCRIPT")
+            log() { echo "$@" >&2; }
+            die() { echo "ERROR: $*" >&2; exit 1; }
+
+            set_parameters 2>/dev/null
+        )
+
+        if [[ "$result" == *"$expected_param"* ]]; then
+            echo -e "  ${GREEN}✓${NC} set_parameters contains: $expected_param"
+        else
+            error "set_parameters did not contain: $expected_param"
+            error "Actual params: $result"
+            return 1
+        fi
+        echo
+    }
+
+    # Test 20: IaC .sarif output_path must be rewritten to .json
+    test_iac_sarif_output_path_rewrite \
+        "IaC .sarif output_path rewritten to .json" \
+        "/tmp/results.sarif" \
+        "--output-path /tmp/results.json"
+
+    # Test 21: IaC .json output_path must be passed through unchanged
+    test_iac_sarif_output_path_rewrite \
+        "IaC .json output_path passed through unchanged" \
+        "/tmp/results.json" \
+        "--output-path /tmp/results.json"
+
     log "All tests completed successfully!"
     log "Image scanning functionality is working correctly."
     
