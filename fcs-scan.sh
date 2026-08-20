@@ -44,7 +44,8 @@ convert_json_to_sarif() {
 
     # Parse FCS CLI output to find generated files
     if [[ -f "$FCS_CLI_OUTPUT_FILE" ]]; then
-        log "convert_json_to_sarif: Parsing CLI output from $FCS_CLI_OUTPUT_FILE"
+        log "convert_json_to_sarif: Parsing CLI output from $FCS_CLI_OUTPUT_FILE (size: $(wc -c < "$FCS_CLI_OUTPUT_FILE") bytes)"
+        log "convert_json_to_sarif: Last 5 lines of CLI output: $(tail -5 "$FCS_CLI_OUTPUT_FILE" | cat -v)"
 
         # Extract file paths from "Results saved to file: <path>" lines
         # Strip carriage returns (\r) that the CLI progress bar embeds in the output
